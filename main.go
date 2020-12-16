@@ -81,11 +81,12 @@ func main() {
 			for i, key := range keys {
 				field := lines[i]
 				// Ignore the data that can be null
-				if strings.HasSuffix(validator.Conf.Validation[key], "|NULLABLE") {
+				if strings.HasSuffix(validator.Conf.Validation[key], "|NULLABLE") && stringutils.IsBlank(field) {
 					continue
 				}
 				switch validator.Conf.Validation[key] {
 				case "INTEGER":
+
 					_, err := strconv.Atoi(field)
 					if err != nil {
 						panic(fmt.Sprintf("%s] Field %s is !NOT! an INTEGER\n", key, field))

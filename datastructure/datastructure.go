@@ -66,7 +66,7 @@ func (v *Validator) LoadFile(path string) io.ReadCloser {
 		}
 		return object.Body
 
-	} else if fileutils.FileExists(path) {
+	} else if fileutils.FileExists(path) && fileutils.IsFile(path) {
 		open, err := os.Open(path)
 		if err != nil {
 			panic(err)
