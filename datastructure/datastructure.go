@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	. "strings"
@@ -49,6 +50,20 @@ func (c *Conf) Validate() {
 		panic("date format not provided")
 	}
 }
+func NewValidatorFromConf(cfg string) *Validator {
+	var conf Conf
+	data, err := ioutil.ReadFile(cfg)
+	if err != nil {
+		panic(err)
+	}
+	if err = json.Unmarshal(data, &conf); err != nil {
+		panic(err)
+	}
+
+	validator := conf.NewValidator()
+	return validator
+}
+
 func (v *Validator) LoadFile(path string) io.ReadCloser {
 	// Load file from S3
 	if HasPrefix(path, "s3://") {
@@ -77,7 +92,7 @@ func (v *Validator) LoadFile(path string) io.ReadCloser {
 }
 
 func createStrfTimeMap(dateformat string) map[string]string {
-	var strf map[string]string = make(map[string]string)
+	var strf = make(map[string]string)
 	replacer := NewReplacer("/", "", " ", "", "-", "", ":", "", ",", "", ".", "")
 	dateformat = replacer.Replace(dateformat)
 	for _, format := range Split(dateformat, "%") {
