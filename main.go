@@ -12,12 +12,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 var bom = []byte{0xef, 0xbb, 0xbf} // UTF-8
 func main() {
 	var lines []string
-	var row int
 
 	log.SetFlags(log.Ldate | log.Lshortfile | log.LstdFlags | log.Lmicroseconds)
 	// Load the configuration file
@@ -53,11 +53,27 @@ func main() {
 		}
 
 		// Iterate every line of the (buffered) file
+		var row int = 1
 		for scanner.Scan() {
+			// Number of the row analyzed, just for easy debug in case of error
+			row++
 			// Retrieve every field of the row
 			lines = strings.Split(scanner.Text(), validator.Conf.Separator)
 			// Validate the length of the field against the length of the csv header
 			if len(lines) != len(csvHeaders) {
+				log.Println("Seems that the number of field are not the same of the configuration")
+				var b1 strings.Builder
+				for _, s := range lines {
+					b1.WriteString(s)
+					b1.WriteString(validator.Conf.Separator)
+				}
+				log.Printf("%d] Row: %s\n", len(lines), b1.String())
+				b1.Reset()
+				for _, s := range csvHeaders {
+					b1.WriteString(s)
+					b1.WriteString(validator.Conf.Separator)
+				}
+				log.Printf("%d] Headers: %s\n", len(csvHeaders), b1.String())
 				panic(fmt.Sprintf("Error on line %d", row))
 			}
 			// Iterating the headers of the csv and the the lines of the row
@@ -84,11 +100,11 @@ func main() {
 					_, err := time.Parse(validator.Conf.DateFormat, field)
 					if err != nil {
 						fmt.Println(validator.Conf.DateFormat)
-						panic(fmt.Sprintf("%s] Field %s is !NOT! a DATE | \n%s", key, field, err.Error()))
+						panic(fmt.Sprintf("%s,%d] Field %s is !NOT! a DATE | \n%s", key, row, field, err.Error()))
 					}
 				case "STRING":
-					if !stringutils.IsASCII(field) {
-						panic(fmt.Sprintf("%s] Field %s is !NOT! a STRING\n", key, field))
+					if !utf8.ValidString(field) {
+						panic(fmt.Sprintf("%s,%d] Field %s is !NOT! a STRING\n", key, row, field))
 					}
 				case "FLOAT":
 					_, err := strconv.ParseFloat(field, 64)
@@ -99,8 +115,6 @@ func main() {
 					panic("Condition [" + validator.Conf.Validation[key] + "] not managed")
 				}
 			}
-			// Number of the row analyzed, just for easy debug in case of error
-			row++
 		}
 		err := file.Close()
 		if err != nil {
