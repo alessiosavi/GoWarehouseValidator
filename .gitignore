@@ -1,2 +1,4 @@
 .idea/
 build
+*.zip
+conf/private_conf.json
