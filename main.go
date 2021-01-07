@@ -18,14 +18,17 @@ import (
 var bom = []byte{0xef, 0xbb, 0xbf} // UTF-8
 func main() {
 	var lines []string
+	var err error
 
 	log.SetFlags(log.Ldate | log.Lshortfile | log.LstdFlags | log.Lmicroseconds)
 	// Load the configuration file
 	cfg := flagParser()
+
 	// Initialize a new validator from the configuration file
 	validator := datastructure.NewValidatorFromConf(cfg)
-	// Mesaure the time execution of the process
+	// Measure the time execution of the process
 	start := time.Now()
+
 	// Iterate the file that have to be loaded from s3/filesystem
 	for _, f := range validator.Conf.Path {
 		log.Println("Validating file [" + f + "]")
@@ -62,18 +65,6 @@ func main() {
 			// Validate the length of the field against the length of the csv header
 			if len(lines) != len(csvHeaders) {
 				log.Println("Seems that the number of field are not the same of the configuration")
-				var b1 strings.Builder
-				for _, s := range lines {
-					b1.WriteString(s)
-					b1.WriteString(validator.Conf.Separator)
-				}
-				log.Printf("%d] Row: %s\n", len(lines), b1.String())
-				b1.Reset()
-				for _, s := range csvHeaders {
-					b1.WriteString(s)
-					b1.WriteString(validator.Conf.Separator)
-				}
-				log.Printf("%d] Headers: %s\n", len(csvHeaders), b1.String())
 				panic(fmt.Sprintf("Error on line %d", row))
 			}
 			// Iterating the headers of the csv and the the lines of the row
@@ -83,7 +74,7 @@ func main() {
 				field := lines[i]
 				validationType := validator.Conf.Validation[key]
 
-				if strings.HasSuffix(validator.Conf.Validation[key], "|NULLABLE") {
+				if strings.HasSuffix(validationType, "|NULLABLE") {
 					// Ignore the data that can be null
 					if stringutils.IsBlank(field) {
 						continue
@@ -92,35 +83,40 @@ func main() {
 				}
 				switch validationType {
 				case "INTEGER":
-					_, err := strconv.Atoi(field)
+					_, err = strconv.Atoi(field)
 					if err != nil {
-						panic(fmt.Sprintf("%s] Field %s is !NOT! an INTEGER\n", key, field))
+						fmt.Printf(fmt.Sprintf("%s] Field %s is !NOT! an INTEGER\n", key, field))
 					}
 				case "DATE":
-					_, err := time.Parse(validator.Conf.DateFormat, field)
+					_, err = time.Parse(validator.Conf.DateFormat, field)
 					if err != nil {
-						fmt.Println(validator.Conf.DateFormat)
-						panic(fmt.Sprintf("%s,%d] Field %s is !NOT! a DATE | \n%s", key, row, field, err.Error()))
+						fmt.Printf(validator.Conf.DateFormat)
+						fmt.Printf(fmt.Sprintf("%s,%d] Field %s is !NOT! a DATE | \n%s", key, row, field, err.Error()))
 					}
 				case "STRING":
-					if !utf8.ValidString(field) {
-						panic(fmt.Sprintf("%s,%d] Field %s is !NOT! a STRING\n", key, row, field))
+					if stringutils.IsBlank(field) || !utf8.ValidString(field) {
+						fmt.Printf(fmt.Sprintf("%s,%d] Field %s is !NOT! a STRING\n", key, row, field))
+					}
+					count := strings.Count(field, `"`)
+					if count > 0 && count != 2 {
+						fmt.Printf(fmt.Sprintf("%s,%d] Field %s contains a number of \" different from 2!\n", key, row, field))
 					}
 				case "FLOAT":
-					_, err := strconv.ParseFloat(field, 64)
+					_, err = strconv.ParseFloat(field, 64)
 					if err != nil {
-						panic(fmt.Sprintf("%s] Field %s is !NOT! a FLOAT\n", key, field))
+						fmt.Printf(fmt.Sprintf("%s] Field %s is !NOT! a FLOAT\n", key, field))
 					}
 				default:
-					panic("Condition [" + validator.Conf.Validation[key] + "] not managed")
+					fmt.Printf("Condition [" + validator.Conf.Validation[key] + "] not managed")
 				}
 			}
 		}
-		err := file.Close()
+
+		err = file.Close()
 		if err != nil {
 			panic("Unable to close file: " + f)
 		}
-		log.Println("File [" + f + "] is valid!")
+
 	}
 
 	duration := time.Since(start)
