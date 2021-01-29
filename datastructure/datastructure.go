@@ -182,10 +182,10 @@ func createStrfTimeMap(dateformat string) map[string]string {
 }
 
 func (conf *Conf) SetDateFormat() {
-	for _, c := range conf.Conf {
-		timeMap := createStrfTimeMap(c.DateFormat)
+	for i := range conf.Conf {
+		timeMap := createStrfTimeMap(conf.Conf[i].DateFormat)
 		for key := range timeMap {
-			c.DateFormat = ReplaceAll(c.DateFormat, key, timeMap[key])
+			conf.Conf[i].DateFormat = ReplaceAll(conf.Conf[i].DateFormat, key, timeMap[key])
 		}
 	}
 }
