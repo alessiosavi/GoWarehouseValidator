@@ -16,38 +16,39 @@ import (
 )
 
 type Conf struct {
-	// Path related to the file (s3 or filesystem)
-	Path       []string          `json:"path"`
-	Validation map[string]string `json:"validation"`
-	Region     string            `json:"region"`
-	Separator  string            `json:"separator"`
-	DateFormat string            `json:"date_format"`
+	Region string `json:"region"`
+	Conf   []struct {
+		Path       []string          `json:"path"`
+		Separator  string            `json:"separator"`
+		DateFormat string            `json:"date_format"`
+		Validation map[string]string `json:"validation"`
+	} `json:"conf"`
 }
-
 type Validator struct {
 	Conf      Conf
 	S3session *s3.S3
 }
 
-func (c *Conf) Validate() {
-	if c == nil {
+func (conf *Conf) Validate() {
+	if conf == nil {
 		panic("configuration is null")
 	}
-	if len(c.Path) == 0 {
-		panic("empty path in configuration")
-	}
-
-	if c.Validation == nil || len(c.Validation) == 0 {
-		panic("validation map is empty!")
-	}
-	if stringutils.IsBlank(c.Region) {
+	if stringutils.IsBlank(conf.Region) {
 		panic("empty region for s3 bucket")
 	}
-	if stringutils.IsBlank(c.Separator) {
-		panic("separator not provided")
-	}
-	if stringutils.IsBlank(c.DateFormat) {
-		panic("date format not provided")
+	for _, c := range conf.Conf {
+		if len(c.Path) == 0 {
+			panic("empty path in configuration")
+		}
+		if c.Validation == nil || len(c.Validation) == 0 {
+			panic("validation map is empty!")
+		}
+		if stringutils.IsBlank(c.Separator) {
+			panic("separator not provided")
+		}
+		if stringutils.IsBlank(c.DateFormat) {
+			panic("date format not provided")
+		}
 	}
 }
 func NewValidatorFromConf(cfg string) *Validator {
@@ -180,34 +181,36 @@ func createStrfTimeMap(dateformat string) map[string]string {
 	return strf
 }
 
-func (c *Conf) SetDateFormat() {
-	timeMap := createStrfTimeMap(c.DateFormat)
-	for key := range timeMap {
-		c.DateFormat = ReplaceAll(c.DateFormat, key, timeMap[key])
+func (conf *Conf) SetDateFormat() {
+	for _, c := range conf.Conf {
+		timeMap := createStrfTimeMap(c.DateFormat)
+		for key := range timeMap {
+			c.DateFormat = ReplaceAll(c.DateFormat, key, timeMap[key])
+		}
 	}
 }
 
 // NewValidator is delegated to verify if the given configuration is valid, then initialize a new validator object.
 //	This object will take in care the validation of the various dataset specified in configuration.
-func (c *Conf) NewValidator() *Validator {
-	indent, err := json.MarshalIndent(c, " ", "  ")
+func (conf *Conf) NewValidator() *Validator {
+	indent, err := json.MarshalIndent(conf, " ", "  ")
 	if err != nil {
 		panic(err)
 	}
 	log.Println("Using the following configuration:")
 	log.Println(string(indent))
 	// Validate the configuration
-	c.Validate()
+	conf.Validate()
 	//sess, err := session.NewSession()
 	sess, err := session.NewSessionWithOptions(session.Options{
-		Config: aws.Config{Region: aws.String(ToLower(c.Region))},
+		Config: aws.Config{Region: aws.String(ToLower(conf.Region))},
 	})
 	if err != nil {
 		panic(err)
 	}
 	var v Validator
 	v.S3session = s3.New(sess)
-	v.Conf = *c
+	v.Conf = *conf
 	v.Conf.SetDateFormat()
 	return &v
 }
