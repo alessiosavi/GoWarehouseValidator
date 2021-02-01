@@ -18,7 +18,6 @@ import (
 var bom = []byte{0xef, 0xbb, 0xbf} // UTF-8
 func main() {
 	var lines []string
-	var err error
 
 	log.SetFlags(log.Ldate | log.Lshortfile | log.LstdFlags | log.Lmicroseconds)
 	// Load the configuration file
@@ -37,7 +36,11 @@ func main() {
 		for _, f := range toValidate.Path {
 			log.Println("Validating file [" + f + "]")
 			// Read the file and load into a buffered scanner
-			file := validator.LoadFile(f)
+			file, err := validator.LoadFile(f)
+			if err != nil {
+				log.Println("ERROR! |", err.Error())
+				continue
+			}
 			defer file.Close()
 			scanner := bufio.NewScanner(file)
 			// Get the header of the CSV. These headers have to be validated against key of the map in the `validation`

@@ -65,7 +65,7 @@ func NewValidatorFromConf(cfg string) *Validator {
 	return validator
 }
 
-func (v *Validator) LoadFile(path string) io.ReadCloser {
+func (v *Validator) LoadFile(path string) (io.ReadCloser, error) {
 	// Load file from S3
 	if HasPrefix(path, "s3://") {
 		totalPath := path[len("s3://"):]
@@ -78,18 +78,18 @@ func (v *Validator) LoadFile(path string) io.ReadCloser {
 			Key:    aws.String(fName),
 		})
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
-		return object.Body
+		return object.Body, nil
 
 	} else if fileutils.FileExists(path) && fileutils.IsFile(path) {
 		open, err := os.Open(path)
 		if err != nil {
 			panic(err)
 		}
-		return open
+		return open, nil
 	}
-	return nil
+	return nil, fmt.Errorf("file [%s] does not exist", path)
 }
 
 func createStrfTimeMap(dateformat string) map[string]string {
