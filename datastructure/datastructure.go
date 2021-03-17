@@ -181,12 +181,12 @@ func createStrfTimeMap(dateformat string) map[string]string {
 }
 
 func (conf *Conf) SetDateFormat() {
-	for i := range conf.Conf {
-		timeMap := createStrfTimeMap(conf.Conf[i].DateFormat)
-		for key := range timeMap {
-			conf.Conf[i].DateFormat = ReplaceAll(conf.Conf[i].DateFormat, key, timeMap[key])
-		}
-	}
+	//for i := range conf.Conf {
+	//	timeMap := createStrfTimeMap(conf.Conf[i].DateFormat)
+	//	for key := range timeMap {
+	//		conf.Conf[i].DateFormat = ReplaceAll(conf.Conf[i].DateFormat, key, timeMap[key])
+	//	}
+	//}
 }
 
 // NewValidator is delegated to verify if the given configuration is valid, then initialize a new validator object.
