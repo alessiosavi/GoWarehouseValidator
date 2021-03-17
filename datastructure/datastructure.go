@@ -69,9 +69,8 @@ func (v *Validator) LoadFile(path string) (io.ReadCloser, error) {
 	// Load file from S3
 	if HasPrefix(path, "s3://") {
 		totalPath := path[len("s3://"):]
-		lastIndex := LastIndex(totalPath, "/")
-		fName := totalPath[lastIndex:]
 		firstIndex := Index(totalPath, "/")
+		fName := totalPath[firstIndex+1:]
 		bucketName := totalPath[:firstIndex]
 		object, err := v.S3session.GetObject(&s3.GetObjectInput{
 			Bucket: aws.String(bucketName),
