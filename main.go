@@ -10,6 +10,8 @@ import (
 	stringutils "github.com/alessiosavi/GoGPUtils/string"
 	"io/ioutil"
 	"log"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -26,7 +28,6 @@ func main() {
 	// Initialize a new validator from the configuration file
 	validator := datastructure.NewValidatorFromConf(cfg)
 	// Measure the time execution of the process
-	start := time.Now()
 
 	// Iterate the file that have to be loaded from s3/filesystem
 
@@ -41,7 +42,7 @@ func main() {
 				continue
 			}
 			defer file.Close()
-
+			start := time.Now()
 			data, err := ioutil.ReadAll(file)
 			if err != nil {
 				panic(err)
@@ -118,19 +119,29 @@ func main() {
 					}
 				}
 			}
+			filename := path.Base(f)
 			if sb.Len() > 0 {
-				log.Println(sb.String())
+				basepath := path.Dir(strings.Replace(f, "s3://", "", 1))
+
+				if err = os.MkdirAll(basepath, 0755); err != nil {
+					log.Println("Unable to dump the result:", err)
+				} else {
+					if err = ioutil.WriteFile(path.Join(basepath, filename), []byte(sb.String()), 0755); err != nil {
+						log.Println("Unable to dump the result:", err)
+					}
+					log.Printf("Saving result in: %s", path.Join(basepath, filename))
+				}
+				if err = file.Close(); err != nil {
+					panic("Unable to close file: " + f)
+				}
+			} else {
+				log.Printf("File %s is valid!\n",f)
 			}
-			//basepath := strings.ReplaceAll(path.Base(f), "s3://", "")
-			//filename
-			if err = file.Close(); err != nil {
-				panic("Unable to close file: " + f)
-			}
+			duration := time.Since(start)
+			log.Printf("Validating file [%s] took: %+v\n ", filename, duration)
+
 		}
 	}
-
-	duration := time.Since(start)
-	log.Println(duration)
 
 }
 
