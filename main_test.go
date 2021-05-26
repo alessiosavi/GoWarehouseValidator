@@ -1,7 +1,7 @@
 package main
 
 import (
-	"GoWarehouseValidator/datastructure"
+	"github.com/alessiosavi/GoWarehouseValidator/datastructure"
 	"testing"
 )
 

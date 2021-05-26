@@ -1,4 +1,5 @@
 .idea/
 build
 *.zip
-conf/private_conf.json
+conf/*_conf.json
+errors.txt
