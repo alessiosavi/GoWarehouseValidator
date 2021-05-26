@@ -1,4 +1,4 @@
-module GoWarehouseValidator
+module github.com/alessiosavi/GoWarehouseValidator
 
 go 1.15
 
