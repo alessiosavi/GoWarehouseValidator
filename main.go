@@ -18,7 +18,6 @@ import (
 	"unicode/utf8"
 )
 
-var bom = []byte{0xef, 0xbb, 0xbf} // UTF-8
 func main() {
 
 	log.SetFlags(log.Ldate | log.Lshortfile | log.LstdFlags | log.Lmicroseconds)
@@ -26,7 +25,7 @@ func main() {
 	cfg := flagParser()
 
 	// Initialize a new validator from the configuration file
-	validator := datastructure.NewValidatorFromConf(cfg)
+	validator := datastructure.NewValidatorFromFile(cfg)
 	// Measure the time execution of the process
 
 	// Iterate the file that have to be loaded from s3/filesystem
@@ -54,8 +53,8 @@ func main() {
 				panic("Headers line have different length")
 			}
 			// Remove the UTF-8 BOM from the first line of the CSV
-			if bytes.HasPrefix([]byte(csvHeaders[0]), bom) {
-				csvHeaders[0] = string(bytes.Replace([]byte(csvHeaders[0]), bom, []byte(""), 1))
+			if bytes.HasPrefix([]byte(csvHeaders[0]), datastructure.BOM) {
+				csvHeaders[0] = string(bytes.Replace([]byte(csvHeaders[0]), datastructure.BOM, []byte(""), 1))
 			}
 			// Iterate the key of the validation map
 			for key := range toValidate.Validation {
@@ -135,7 +134,7 @@ func main() {
 					panic("Unable to close file: " + f)
 				}
 			} else {
-				log.Printf("File %s is valid!\n",f)
+				log.Printf("File %s is valid!\n", f)
 			}
 			duration := time.Since(start)
 			log.Printf("Validating file [%s] took: %+v\n ", filename, duration)

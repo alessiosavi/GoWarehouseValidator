@@ -1,33 +1,43 @@
 package datastructure
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	fileutils "github.com/alessiosavi/GoGPUtils/files"
 	stringutils "github.com/alessiosavi/GoGPUtils/string"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
-	. "strings"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
 )
 
+type ValidationConf struct {
+	Path       []string          `json:"path"`
+	Separator  string            `json:"separator"`
+	DateFormat string            `json:"date_format"`
+	Validation map[string]string `json:"validation"`
+}
+
 type Conf struct {
-	Region string `json:"region"`
-	Conf   []struct {
-		Path       []string          `json:"path"`
-		Separator  string            `json:"separator"`
-		DateFormat string            `json:"date_format"`
-		Validation map[string]string `json:"validation"`
-	} `json:"conf"`
+	Region string           `json:"region"`
+	Conf   []ValidationConf `json:"conf"`
 }
 type Validator struct {
 	Conf      Conf
-	S3session *s3.S3
+	S3session *s3.Client
 }
+
+var BOM = []byte{0xef, 0xbb, 0xbf} // UTF-8
 
 func (conf *Conf) Validate() {
 	if conf == nil {
@@ -51,7 +61,8 @@ func (conf *Conf) Validate() {
 		}
 	}
 }
-func NewValidatorFromConf(cfg string) *Validator {
+
+func NewValidatorFromFile(cfg string) *Validator {
 	var conf Conf
 	data, err := ioutil.ReadFile(cfg)
 	if err != nil {
@@ -67,12 +78,12 @@ func NewValidatorFromConf(cfg string) *Validator {
 
 func (v *Validator) LoadFile(path string) (io.ReadCloser, error) {
 	// Load file from S3
-	if HasPrefix(path, "s3://") {
+	if strings.HasPrefix(path, "s3://") {
 		totalPath := path[len("s3://"):]
-		firstIndex := Index(totalPath, "/")
+		firstIndex := strings.Index(totalPath, "/")
 		fName := totalPath[firstIndex+1:]
 		bucketName := totalPath[:firstIndex]
-		object, err := v.S3session.GetObject(&s3.GetObjectInput{
+		object, err := v.S3session.GetObject(context.Background(), &s3.GetObjectInput{
 			Bucket: aws.String(bucketName),
 			Key:    aws.String(fName),
 		})
@@ -91,104 +102,6 @@ func (v *Validator) LoadFile(path string) (io.ReadCloser, error) {
 	return nil, fmt.Errorf("file [%s] does not exist", path)
 }
 
-func createStrfTimeMap(dateformat string) map[string]string {
-	var strf = make(map[string]string)
-	replacer := NewReplacer("/", "", " ", "", "-", "", ":", "", ",", "", ".", "")
-	dateformat = replacer.Replace(dateformat)
-	for _, format := range Split(dateformat, "%") {
-		if len(format) == 0 {
-			continue
-		}
-		format = "%" + string(format[0])
-		switch format {
-		case "%a":
-			strf["%a"] = `Mon`
-		case "%A":
-			strf["%A"] = "Monday "
-		case "%b":
-			strf["%b"] = "Jan"
-		case "%B":
-			strf["%B"] = "January"
-		//case "%c":
-		//	strf["%c"] = ""
-		//case "%C":
-		//	strf["%C"] = ""
-		case "%d":
-			strf["%d"] = "02"
-		//case "%D":
-		//	strf["%D"] = ""
-		//case "%e":
-		//	strf["%e"] = ""
-		//case "%F":
-		//	strf["%F"] = ""
-		//case "%g":
-		//	strf["%g"] = ""
-		//case "%G":
-		//	strf["%G"] = ""
-		case "%h":
-			strf["%h"] = "Jan"
-		case "%H":
-			strf["%H"] = "15"
-		case "%I":
-			strf["%I"] = "03"
-		//case "%j":
-		//	strf["%j"] = ""
-		case "%m":
-			strf["%m"] = "01"
-		case "%M":
-			strf["%M"] = "04"
-		//case "%p":
-		//	strf["%p"] = ""
-		//case "%r":
-		//	strf["%r"] = ""
-		case "%R":
-			strf["%R"] = "15:04"
-		case "%S":
-			strf["%S"] = "05"
-		//case "%t":
-		//	strf["%t"] = ""
-		case "%T":
-			strf["%T"] = "15:04:05"
-		//case "%u":
-		//	strf["%u"] = ""
-		//case "%U":
-		//	strf["%U"] = ""
-		//case "%V":
-		//	strf["%V"] = ""
-		//case "%w":
-		//	strf["%w"] = ""
-		//case "%W":
-		//	strf["%W"] = ""
-		//case "%x":
-		//	strf["%c"] = ""
-		case "%X":
-			strf["%X"] = "15:04:05"
-		case "%y":
-			strf["%y"] = "06"
-		case "%Y":
-			strf["%Y"] = "2006"
-		//case "%z":
-		//	strf["%z"] = ""
-		//case "%Z":
-		//	strf["%Z"] = ""
-		default:
-			if !stringutils.IsBlank(format) {
-				panic(fmt.Sprintf("format [%s] not found!", format))
-			}
-		}
-	}
-	return strf
-}
-
-func (conf *Conf) SetDateFormat() {
-	//for i := range conf.Conf {
-	//	timeMap := createStrfTimeMap(conf.Conf[i].DateFormat)
-	//	for key := range timeMap {
-	//		conf.Conf[i].DateFormat = ReplaceAll(conf.Conf[i].DateFormat, key, timeMap[key])
-	//	}
-	//}
-}
-
 // NewValidator is delegated to verify if the given configuration is valid, then initialize a new validator object.
 //	This object will take in care the validation of the various dataset specified in configuration.
 func (conf *Conf) NewValidator() *Validator {
@@ -200,16 +113,98 @@ func (conf *Conf) NewValidator() *Validator {
 	log.Println(string(indent))
 	// Validate the configuration
 	conf.Validate()
-	//sess, err := session.NewSession()
-	sess, err := session.NewSessionWithOptions(session.Options{
-		Config: aws.Config{Region: aws.String(ToLower(conf.Region))},
-	})
+
+	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
 		panic(err)
 	}
+
 	var v Validator
-	v.S3session = s3.New(sess)
+	v.S3session = s3.New(s3.Options{Credentials: cfg.Credentials, Region: cfg.Region})
 	v.Conf = *conf
-	v.Conf.SetDateFormat()
 	return &v
+}
+
+type ErrorLine struct {
+	Index     int    `json:"index,omitempty"`
+	Row       string `json:"row,omitempty"`
+	ErrorType string `json:"error_type,omitempty"`
+	FieldName string `json:"field_name,omitempty"`
+}
+
+func (v *Validator) ValidateData(csvHeaders []string, csvData [][]string, toValidate ValidationConf) ([]ErrorLine, error) {
+	var errorsLine []ErrorLine
+	// Split the header of the csv using the input separator
+	if len(csvHeaders) != len(toValidate.Validation) {
+		panic("Headers row have different length")
+	}
+	// Remove the UTF-8 BOM from the first row of the CSV
+	if bytes.HasPrefix([]byte(csvHeaders[0]), BOM) {
+		csvHeaders[0] = string(bytes.Replace([]byte(csvHeaders[0]), BOM, []byte(""), 1))
+	}
+	// Iterate the key of the validation map
+	for key := range toValidate.Validation {
+		// Verify the that the given map key is present in the csv headers
+		if !stringutils.CheckPresence(csvHeaders, key) {
+			return nil, errors.New(fmt.Sprintf("headers %s does not contains the following header: [%s]", csvHeaders, key))
+		}
+	}
+
+	// Iterate every row of the csv
+	var rowN int = 1
+	for _, row := range csvData {
+		// Number of the row analyzed, just for easy debug in case of error
+		rowN++
+		// Retrieve every field of the row
+		// Validate the length of the field against the length of the csv header
+		if len(row) != len(csvHeaders) {
+			return nil, errors.New("number of field mismatch with headers")
+		}
+		// Iterating the headers of the csv and the the row of the row
+		// 	key = name of the headers of the csv
+		//	field = field of the csv row
+		for i, key := range csvHeaders {
+			field := row[i]
+			validationType := toValidate.Validation[key]
+
+			if strings.HasSuffix(validationType, "|NULLABLE") {
+				// Ignore the data that can be null
+				if stringutils.IsBlank(field) {
+					continue
+				}
+				validationType = validationType[:strings.Index(validationType, "|")]
+			}
+			switch validationType {
+			case "INTEGER":
+				_, err := strconv.Atoi(field)
+				if err != nil {
+					errorsLine = append(errorsLine, ErrorLine{Index: rowN, Row: stringutils.JoinSeparator(",", row...),
+						ErrorType: fmt.Sprintf("[%s] is not an INTEGER", field), FieldName: key})
+				}
+			case "DATE":
+				_, err := time.Parse(toValidate.DateFormat, field)
+				if err != nil {
+					errorsLine = append(errorsLine, ErrorLine{Index: rowN, Row: stringutils.JoinSeparator(",", row...),
+						ErrorType: fmt.Sprintf("[%s] is not a valid DATE", field), FieldName: key})
+				}
+			case "STRING":
+				if stringutils.IsBlank(field) || !utf8.ValidString(field) {
+					errorsLine = append(errorsLine, ErrorLine{Index: rowN, Row: stringutils.JoinSeparator(",", row...),
+						ErrorType: fmt.Sprintf("[%s] is not an valid STRING", field), FieldName: key})
+				}
+				//count := strings.Count(field, `"`)
+				//if count > 0 && count != 2 {
+				//	sb.WriteString(fmt.Sprintf("%s,%d] Field [%s] contains a number of \" different from 2!\n", key, rowN, field))
+				//}
+			case "FLOAT":
+				if _, err := strconv.ParseFloat(field, 64); err != nil {
+					errorsLine = append(errorsLine, ErrorLine{Index: rowN, Row: stringutils.JoinSeparator(",", row...),
+						ErrorType: fmt.Sprintf("[%s] is not an INTEGER", field), FieldName: key})
+				}
+			default:
+				log.Printf("Condition [" + toValidate.Validation[key] + "] not managed")
+			}
+		}
+	}
+	return errorsLine, nil
 }
