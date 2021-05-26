@@ -151,10 +151,7 @@ func (v *Validator) ValidateData(csvHeaders []string, csvData [][]string, toVali
 	}
 
 	// Iterate every row of the csv
-	var rowN int = 1
-	for _, row := range csvData {
-		// Number of the row analyzed, just for easy debug in case of error
-		rowN++
+	for rowN, row := range csvData {
 		// Retrieve every field of the row
 		// Validate the length of the field against the length of the csv header
 		if len(row) != len(csvHeaders) {
@@ -204,6 +201,7 @@ func (v *Validator) ValidateData(csvHeaders []string, csvData [][]string, toVali
 			default:
 				log.Printf("Condition [" + toValidate.Validation[key] + "] not managed")
 			}
+
 		}
 	}
 	return errorsLine, nil
