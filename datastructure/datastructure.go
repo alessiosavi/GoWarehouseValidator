@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	fileutils "github.com/alessiosavi/GoGPUtils/files"
+	"github.com/alessiosavi/GoGPUtils/helper"
 	stringutils "github.com/alessiosavi/GoGPUtils/string"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -105,12 +106,7 @@ func (v *Validator) LoadFile(path string) (io.ReadCloser, error) {
 // NewValidator is delegated to verify if the given configuration is valid, then initialize a new validator object.
 //	This object will take in care the validation of the various dataset specified in configuration.
 func (conf *Conf) NewValidator() *Validator {
-	indent, err := json.MarshalIndent(conf, " ", "  ")
-	if err != nil {
-		panic(err)
-	}
-	log.Println("Using the following configuration:")
-	log.Println(string(indent))
+	log.Println("Using the following configuration: " + helper.Marshal(conf))
 	// Validate the configuration
 	conf.Validate()
 
@@ -169,6 +165,7 @@ func (v *Validator) ValidateData(csvHeaders []string, csvData [][]string, toVali
 				if stringutils.IsBlank(field) {
 					continue
 				}
+				// Remove nullable from the validation string
 				validationType = validationType[:strings.Index(validationType, "|")]
 			}
 			switch validationType {
