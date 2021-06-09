@@ -38,7 +38,14 @@ type Validator struct {
 	S3session *s3.Client
 }
 
-var BOM = []byte{0xef, 0xbb, 0xbf} // UTF-8
+var BOMS = [][]byte{
+	[]byte{0xef, 0xbb, 0xbf},       // UTF-8
+	[]byte{0xff, 0xfe},             // UTF-16 LE
+	[]byte{0xfe, 0xff},             // UTF-16 BE
+	[]byte{0xff, 0xfe, 0x00, 0x00}, // UTF-32 LE
+	[]byte{0x00, 0x00, 0xfe, 0xff}, // UTF-32 LE
+
+}
 
 func (conf *Conf) Validate() {
 	if conf == nil {
@@ -128,35 +135,38 @@ type ErrorLine struct {
 	FieldName string `json:"field_name,omitempty"`
 }
 
-func (v *Validator) ValidateData(csvHeaders []string, csvData [][]string, toValidate ValidationConf) ([]ErrorLine, error) {
+func (v *Validator) ValidateData(headers []string, data [][]string, toValidate ValidationConf) ([]ErrorLine, error) {
 	var errorsLine []ErrorLine
 	// Split the header of the csv using the input separator
-	if len(csvHeaders) != len(toValidate.Validation) {
-		panic("Headers row have different length")
+	if len(headers) != len(toValidate.Validation) {
+		// If occurs in the first row, than it's probably because the separator configured is different from the one of the file
+		return []ErrorLine{{Index: 0, Row: "", ErrorType: "Headers row have different length"}}, nil
 	}
-	// Remove the UTF-8 BOM from the first row of the CSV
-	if bytes.HasPrefix([]byte(csvHeaders[0]), BOM) {
-		csvHeaders[0] = string(bytes.Replace([]byte(csvHeaders[0]), BOM, []byte(""), 1))
+	// Remove the various UTF BOM from the first line of the CSV
+	for _, bom := range BOMS {
+		if bytes.HasPrefix([]byte(headers[0]), bom) {
+			headers[0] = string(bytes.Replace([]byte(headers[0]), bom, nil, 1))
+		}
 	}
 	// Iterate the key of the validation map
 	for key := range toValidate.Validation {
 		// Verify the that the given map key is present in the csv headers
-		if !stringutils.CheckPresence(csvHeaders, key) {
-			return nil, errors.New(fmt.Sprintf("headers %s does not contains the following header: [%s]", csvHeaders, key))
+		if !stringutils.CheckPresence(headers, key) {
+			return []ErrorLine{{Index: 0, Row: "", ErrorType: fmt.Sprintf("headers %s does not contains the following header: [%s]", headers, key), FieldName: key}}, nil
 		}
 	}
 
 	// Iterate every row of the csv
-	for rowN, row := range csvData {
+	for rowN, row := range data {
 		// Retrieve every field of the row
 		// Validate the length of the field against the length of the csv header
-		if len(row) != len(csvHeaders) {
+		if len(row) != len(headers) {
 			return nil, errors.New("number of field mismatch with headers")
 		}
 		// Iterating the headers of the csv and the the row of the row
 		// 	key = name of the headers of the csv
 		//	field = field of the csv row
-		for i, key := range csvHeaders {
+		for i, key := range headers {
 			field := row[i]
 			validationType := toValidate.Validation[key]
 
